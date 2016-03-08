@@ -49,8 +49,6 @@ Here is a list of high profile plug-ins which use the template support:
  4.    Templates                             |template-support-templates|
  4.1    Macros                               |template-support-templ-macro|
  4.1.1   Predefined Macros                   |template-support-templ-predef|
- 4.1.2   Flags                               |template-support-templ-flag|
- 4.1.3   Format Specifiers                   |template-support-templ-format|
  4.2    Tags                                 |template-support-templ-tags|
  4.3    Placement                            |template-support-templ-place|
  4.3.1   Visual Mode                         |template-support-templ-visual|
@@ -359,7 +357,7 @@ When this call is inserted into a library, it has to be checked for constructs
 which can not be used anymore. However, existing libraries must not be changed
 immediately once a new version comes along.
 
-See |template-support-change-interf| for a change log limited to changes in
+See |template-support-change-interf| for a change log limited to changed in
 the interface.
 
 ==============================================================================
@@ -512,105 +510,33 @@ inserted with all letters in uppercase. So a file named "string.h" will have
 an include guard named "_STRING_INC".
 
 The possible flags are listed below:
-	:l - change replacement text to lowercase
-	:u - change replacement text to uppercase
+	:l - change text to lowercase
+	:u - change text to uppercase
 	:c - capitalize text (change first letter to uppercase)
 	:L - legalize name (replace all non-word characters with underscores)
-	:T - remove tags (remove all cursor, split, and jump tags)
 
 ------------------------------------------------------------------------------
 
-4.1.3  Format Specifiers                       *template-support-templ-format*
+4.1.1  Predefined Macros                       *template-support-templ-predef*
 
-A format specifier can be added to change the way the macro is replaced. E.g.,
-in some comment boxes the formatting should not be broken. Consider this
-example:
->
-	== Comments.file description == start ==
-	# ################################################## #
-	#          File:  |FILENAME|                         #
-	#   Description:  <CURSOR>                           #
-	#                                                    #
-	#        Author:  |AUTHOR|                           #
-	#       Version:  1.0                                #
-	#       Created:  |DATE|                             #
-	# ################################################## #
+The replacements for various macros are handles automatically by the template
+support. Mostly, they will help with the basic documentation of the file: What
+was edited and when?
 
-	== ENDTEMPLATE ==
-<
-Inserting this template into a file would result in a broken formatting:
->
-	# ################################################## #
-	#          File:  test.sh                         #
-	#   Description:  |                          #
-	#                                                    #
-	#        Author:  Wolfgang Mehner                           #
-	#       Version:  1.0                                #
-	#       Created:  11.11.2015                             #
-	# ################################################## #
-<
-Therefore macros can be specified to be inserted with fixed width, for
-example:
->
-	== Comments.file description == start ==
-	# ################################################## #
-	#          File:  |FILENAME%++++++++++++++++++++++l| #
-	#   Description:  <RCURSOR>                          #
-	#                                                    #
-	#        Author:  |AUTHOR%++++++++++++++++++++++++l| #
-	#       Version:  1.0                                #
-	#       Created:  |DATE%++++++++++++++++++++++++++l| #
-	# ################################################## #
+	*|PATH|*     : the path of the current file
+	*|FILENAME|* : the name of the file
+	*|BASENAME|* : the name of the file without the suffix
+	*|SUFFIX|*   : the suffix of the file
 
-	== ENDTEMPLATE ==
-<
-The format specifier causes the replacement text to be padded with spaces,
-such that a text of the desired width is inserted. The special cursor tag
-<RCURSOR> is replaced with the right amount of spaces as well, and after the
-template insertion replacement mode is started:
->
-	# ################################################## #
-	#          File:  test.sh                            #
-	#   Description:  |                                  #
-	#                                                    #
-	#        Author:  Wolfgang Mehner                    #
-	#       Version:  1.0                                #
-	#       Created:  11.11.2015                         #
-	# ################################################## #
-<
-The format specifier is a '%' followed by several plus characters '+', which
-are used to extend the macro to the desired width. The format specifier ends
-with an (optional) character 'l', 'c', or 'r' to indicate the alignment (left,
-center, or right, respectively).
+Except for using flags, the user has no further influence on the replacements
+of these macros, they can not be set via SetMacro().
 
-If the replacement text is longer than the macro in the template, the
-formatting will be broken. Instead of the plus character, several dashes can
-be used. In this case the replacement text will be cut off if it is longer
-than the macro:
->
-	== Comments.file description == start ==
-	# ################################################## #
-	#          File:  |FILENAME%----------------------l| #
-  ...
-<
-The width can also be specified by a number. To insert a text which is always
-at least 4 characters long: >
-  |AUTHORREF%+4|
-To insert it such that the text is never longer than 4 characters: >
-  |AUTHORREF%-4|
+	*|TIME|*     : the current time
+	*|DATE|*     : the current date
+	*|YEAR|*     : the current year
 
-The following format specifiers are possible, the alignment is always optional:
-
-  %++++++l - pad the replacement text
-  %------l - pad the replacement text, cut off if it is to long
-
-  %+10l    - the width is given by the number
-  %-10l    - the width is given by the number, cut off if the text is to long
-  %10l     - the width is given by the number, do not cut off
-
-  %+l %-l  - align left
-  %+c %-c  - align center
-  %+r %-r  - align right
+The format of the inserted dates and times can be set via SetFormat (see
+|template-support-SetFormat|).
 
 ------------------------------------------------------------------------------
 4.2  TAGS                                        *template-support-templ-tags*

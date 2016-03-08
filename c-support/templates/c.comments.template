@@ -9,26 +9,26 @@
 == Comments.end-of-line-comment == append, nomenu ==
 /* <CURSOR> */
 == Comments.frame == map:cfr, shortcut:f  ==
-/**********************************************************************/
-/*  <RCURSOR>                                                         */
-/**********************************************************************/
+/*-----------------------------------------------------------------------------
+ *  <CURSOR>
+ *-----------------------------------------------------------------------------*/
 == Comments.function == map:cfu, shortcut:f  ==
 /**********************************************************************/
 /*                                                                    */
-/*  Function Name: |?FUNCTION_NAME%---------------------------------| */
+/*  Function Name:  |?FUNCTION_NAME|                                  */
 /*                                                                    */
-/*  Description: <RCURSOR>                                            */
+/*    Description:  <CURSOR>                                          */
 /*                                                                    */
-/*  Parameters:                                                       */
+/*     Parameters:  <+params+>                                        */
+/*                                                                    */
+/*        Returns:  <+returns+>                                       */
 /*                                                                    */
 /**********************************************************************/
-/*    DATE           AUTHOR                  DESCRIPTION              */
+/*    DATE           AUTHOR                   DESCRIPTION             */     
 /*  --------  --------------------  --------------------------------  */
-/*  |DATE%-|  |AUTHOR%-----------|  Initial Release                   */
+/*  |DATE|    |AUTHOR|              Initial Release                   */
 /*                                                                    */
 /**********************************************************************/
-
-
 == Comments.method == map:cme, shortcut:m  ==
 /*
  *--------------------------------------------------------------------------------------
@@ -54,74 +54,56 @@
 
 == Comments.file description impl == map:cfdi, shortcut:c, start, noindent ==
 /**********************************************************************/
+/*                                                                    */ 
 /*                                                                    */
-/*  Program ID:   |FILENAME%----------------------------------------| */
+/*       Filename:  |FILENAME|                                        */
 /*                                                                    */
-/*  Description:  <RCURSOR>                                           */
+/*    Description:  <CURSOR>                                          */
 /*                                                                    */
-/*  Input Parms:  <+INPUTPARAMS+>                                     */
+/*        Version:  1.0                                               */
+/*        Created:  |DATE| |TIME|                                     */
+/*       Revision:  none                                              */
+/*       Compiler:  gcc                                               */
 /*                                                                    */
-/*  Exit Value:   EXIT_SUCCESS - normal termination                   */
-/*                EXIT_FAILURE - abnormal termination due to open,    */
-/*                               read, allocation, or input errors    */
-/*                                                                    */
-/*  Input Files: <+INPUTFILES+>                                       */
-/*                                                                    */
-/*  Link procedures:                                                  */
-/*      Link with <+LIB+> lib                                         */
-/*                                                                    */
-/*  Special Logic Notes:                                              */
-/*      <+SPECIALNOTES+>                                              */
+/*         Author:  |AUTHOR| (|AUTHORREF|), |EMAIL|                   */
+/*   Organization:  |ORGANIZATION|                                    */
 /*                                                                    */
 /**********************************************************************/
 /*                        MODIFICATION LOG                            */
 /*                                                                    */
-/*  CO     DATE           AUTHOR                  DESCRIPTION         */
-/*  -----  --------  --------------------  -------------------------  */
-/*  1      |DATE%-|  |AUTHOR%-----------|  Initial Release            */
-/*                                                                    */
-/**********************************************************************/
-/**********************************************************************/
-/*                                                                    */
-/*  Module name:  <+MODULE_NAME+>                                     */
+/*  CO      DATE       AUTHOR              DESCRIPTION                */     
+/*  ------  ---------  ------------------  -------------------------  */
+/*  1       |DATE|     |AUTHOR|            Initial Release            */
 /*                                                                    */
 /**********************************************************************/
 
+
 == Comments.file description header == map:cfdh, shortcut:h, start, noindent ==
 /**********************************************************************/
+/*                                                                    */ 
 /*                                                                    */
-/*  Program ID:   |FILENAME%----------------------------------------| */
+/*       Filename:  |FILENAME|                                        */
 /*                                                                    */
-/*  Description:  <RCURSOR>                                           */
+/*    Description:  <CURSOR>                                          */
 /*                                                                    */
-/*  Input Parms:  <+INPUTPARAMS+>                                     */
+/*        Version:  1.0                                               */
+/*        Created:  |DATE| |TIME|                                     */
+/*       Revision:  none                                              */
+/*       Compiler:  gcc                                               */
 /*                                                                    */
-/*  Exit Value:   EXIT_SUCCESS - normal termination                   */
-/*                EXIT_FAILURE - abnormal termination due to open,    */
-/*                               read, allocation, or input errors    */
-/*                                                                    */
-/*  Input Files: <+INPUTFILES+>                                       */
-/*                                                                    */
-/*  Link procedures:                                                  */
-/*      Link with <+LIB+> lib                                         */
-/*                                                                    */
-/*  Special Logic Notes:                                              */
-/*      <+SPECIALNOTES+>                                              */
+/*         Author:  |AUTHOR| (|AUTHORREF|), |EMAIL|                   */
+/*   Organization:  |ORGANIZATION|                                    */
 /*                                                                    */
 /**********************************************************************/
 /*                        MODIFICATION LOG                            */
 /*                                                                    */
-/*  CO     DATE           AUTHOR                  DESCRIPTION         */
-/*  -----  --------  --------------------  -------------------------  */
-/*  1      |DATE%-|  |AUTHOR%-----------|  Initial Release            */
+/*  CO      DATE       AUTHOR              DESCRIPTION                */     
+/*  ------  ---------  ------------------  -------------------------  */
+/*  1       |DATE|     |AUTHOR|            Initial Release            */
 /*                                                                    */
 /**********************************************************************/
-/**********************************************************************/
-/*                                                                    */
-/*  Module name:  <+MODULE_NAME+>                                     */
-/*                                                                    */
-/**********************************************************************/
-== ENDTEMPLATE ==
+
+= ENDTEMPLATE ==
 
 == LIST: comments_c_sections == hash ==
   'HEADER FILE INCLUDES'        : 'HEADER FILE INCLUDES   ###############################', 

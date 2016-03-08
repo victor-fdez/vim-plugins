@@ -2250,26 +2250,23 @@ endfunction    " ----------  end of function mmtemplates#core#EnableTemplateFile
 "   % [-+*]?\d+ [lcr]?
 "-------------------------------------------------------------------------------
 "
-function! s:ApplyFlag ( text, flag, format, width )
+function! s:ApplyFlag ( text, flag )
 	"
-	let text = a:text
-	"
-	" apply a flag?
 	if a:flag == '' || a:flag == 'i'      " i : identity
-		" noop
+		return a:text
 	elseif a:flag == 'l'                  " l : lowercase
-		let text = tolower(a:text)
+		return tolower(a:text)
 	elseif a:flag == 'u'                  " u : uppercase
-		let text = toupper(a:text)
+		return toupper(a:text)
 	elseif a:flag == 'c'                  " c : capitalize
-		let text = toupper(a:text[0]).a:text[1:]
+		return toupper(a:text[0]).a:text[1:]
 	elseif a:flag == 'L'                  " L : legalized name
 		let text = substitute( a:text, '\s\+', '_', 'g' ) " multiple whitespaces
 		let text = substitute(   text, '\W\+', '_', 'g' ) " multiple non-word characters
 		let text = substitute(   text, '_\+',  '_', 'g' ) " multiple underscores
-		let text = text
+		return text
 	elseif a:flag == 'T'                  " T : remove tags
-		let text = substitute( a:text, '<R\?CURSOR>\|{R\?CURSOR}\|<SPLIT>', '', 'g' ) " cursor and split tags
+		let text = substitute( a:text, '<CURSOR>\|{CURSOR}\|<SPLIT>',       '', 'g' ) " cursor and split tags
 		let text = substitute(   text, s:library.regex_template.JumpTagAll, '', 'g' ) " jump tags
 		let text = text
 	elseif a:flag == 'W'                  " W : replace tags with whitespaces
@@ -2279,45 +2276,6 @@ function! s:ApplyFlag ( text, flag, format, width )
 	else                                  " flag not valid
 		" noop
 	endif
-	"
-	" apply a format specifier?
-	if a:format != ''
-		"
-		" last character -> the alignment (optional)
-		let align = matchstr ( a:format, '[lcr]$' )
-		"
-		" contains a number? -> use this width
-		if a:format =~ '\d'
-			let width = str2nr ( matchstr ( a:format, '^[-+]\?\zs\d\+' ) )
-		else
-			let width = a:width
-		endif
-		"
-		" first character a minus? -> cutoff
-		let cutoff = a:format[0] == '-'
-		"
-		if len ( text ) >= width
-			if ! cutoff
-				let text = text
-			else
-				let text = text[:(width-1)]
-			endif
-		else
-			let pad = width - len ( text )
-			"
-			if align == 'l' || align == ''
-				let text = text . repeat ( ' ', pad )                     " alignment: left
-			elseif align == 'r'
-				let text = repeat ( ' ', pad ) . text                     " alignment: right
-			elseif align == 'c'
-				let text = repeat ( ' ', pad/2 ) . text . repeat ( ' ', pad/2 + pad%2 ) " alignment: center
-			else
-				let text = 'ALIGNMENT FAILED!!! PLEASE REPORT!!!'
-			endif
-		end
-	endif
-	"
-	return text
 	"
 endfunction    " ----------  end of function s:ApplyFlag  ----------
 "
@@ -2498,7 +2456,7 @@ function! s:CheckStdTempl ( cmds, text, calls )
 		if has_key ( s:StandardMacros, m_name )
 			call s:ErrorMsg ( 'The special macro "'.m_name.'" can not be replaced via |?'.m_name.'|.' )
 		elseif ! has_key ( prompted, m_name )
-			let cmds .= "Prompt(".string(m_name).",".string(m_flag[1:]).")\n"
+			let cmds .= "Prompt(".string(m_name).",".string(m_flag).")\n"
 			let prompted[ m_name ] = 1
 		endif
 		"
@@ -3061,7 +3019,7 @@ function! s:PrepareStdTempl ( cmds, text, name )
 				" prompt user for replacement
 				let flagaction = get ( s:Flagactions, m_flag, '' )         " notify flag action, if any
 				let m_text = s:UserInput ( m_name.flagaction.' : ', m_text )
-				let m_text = s:ApplyFlag ( m_text, m_flag, '', 0 )
+				let m_text = s:ApplyFlag ( m_text, m_flag )
 				"
 				" save the result
 				let m_global[ m_name ] = m_text
@@ -3320,8 +3278,7 @@ function! s:PrepareTemplate ( name, ... )
 	endif
 	"
 	if remove_cursor
-		let text = substitute( text, '<CURSOR>\|{CURSOR}',   '', 'g' )
-		let text = substitute( text, '<RCURSOR>\|{RCURSOR}', '         ', 'g' )
+		let text = substitute( text, '<CURSOR>\|{CURSOR}', '', 'g' )
 	endif
 	if remove_split
 		let text = s:LiteralReplacement( text, '<SPLIT>',  '', 'g' )
@@ -3347,8 +3304,6 @@ function! s:PrepareTemplate ( name, ... )
 	endif
 	"
 endfunction    " ----------  end of function s:PrepareTemplate  ----------
-" }}}2
-"-------------------------------------------------------------------------------
 "
 "----------------------------------------------------------------------
 " === Insert Templates: Auxiliary Functions ===   {{{1
@@ -3553,7 +3508,7 @@ function! s:PositionCursor ( placement, flag_mode, pos1, pos2 )
 	" :TODO:12.08.2013 12:00:WM: change behavior?
 	"
 	call setpos ( '.', [ bufnr('%'), a:pos1, 1, 0 ] )
-	let mtch = search( '\m<R\?CURSOR>\|{R\?CURSOR}', 'c', a:pos2 )
+	let mtch = search( '\m<CURSOR>\|{CURSOR}', 'c', a:pos2 )
 	if mtch != 0
 		" tag found (and cursor moved, we are now at the position of the match)
 		let line = getline(mtch)
@@ -3572,9 +3527,6 @@ function! s:PositionCursor ( placement, flag_mode, pos1, pos2 )
 				"call setline( mtch, substitute( line, '<CURSOR>\|{CURSOR}', '', '' ) )
 				startinsert!
 			endif
-		elseif line =~ '<RCURSOR>\|{RCURSOR}'
-			call setline( mtch, substitute( line, '<RCURSOR>\|{RCURSOR}', '         ', '' ) )
-			startreplace
 		else
 			" the line contains other characters: remove the tag and start inserting
 			call setline( mtch, substitute( line, '<CURSOR>\|{CURSOR}', '', '' ) )
