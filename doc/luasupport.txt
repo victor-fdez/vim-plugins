@@ -1,8 +1,8 @@
-*luasupport.txt*                 Lua Support                       Apr 25 2015
+*luasupport.txt*                 Lua Support                       Feb 08 2016
 
 Lua Support                                          *lua-support* *luasupport*
 
-                            Plug-in version 1.0pre
+                             Plug-in version 1.0
                         for Vim version 7.0 and above
                  Wolfgang Mehner <wolfgang-mehner at web.de>
 
@@ -33,7 +33,8 @@ Lua is: Copyright 1994-2015 Lua.org, PUC-Rio.
  2.4.1   Using QuickFix                 |luasupport-usage-qf|
  2.5    Hardcopy                        |luasupport-usage-hardcopy|
  2.6    Help                            |luasupport-usage-help|
- 2.7    Toolbox                         |luasupport-usage-toolbox|
+ 2.7    C-API Templates                 |luasupport-usage-capi|
+ 2.8    Toolbox                         |luasupport-usage-toolbox|
  3.    Templates                        |luasupport-templates|
  3.1    Introduction                    |luasupport-templates-introduction|
  3.2    Jump Tags                       |luasupport-templates-jump-tags|
@@ -43,6 +44,7 @@ Lua is: Copyright 1994-2015 Lua.org, PUC-Rio.
  4.1    Executables                     |luasupport-config-executable|
  4.1.1   Direct Run                     |luasupport-config-direct-run|
  4.1.2   Output Redirection             |luasupport-config-output|
+ 4.1.3   Xterm                          |luasupport-config-xterm|
  4.2    Menus                           |luasupport-config-menus|
  4.3    Maps                            |luasupport-config-maps|
  4.4    Comments                        |luasupport-config-comments|
@@ -432,7 +434,31 @@ or the following help topic will be shown (using "\h2"): >
   :help lua52-math.sin
 <
 ------------------------------------------------------------------------------
-2.7  TOOLBOX                                        *luasupport-usage-toolbox*
+2.7  C-API TEMPLATES                                   *luasupport-usage-capi*
+------------------------------------------------------------------------------
+
+This plug-in is shipped with templates for Lua's C-API. They can be used with
+the C-Support plug-in (www.vim.org/scripts/script.php?script_id=213).
+
+The templates have to be added to C-Support's (!) template library, so they
+can be used when editing C code. Find out the path where the plug-in is
+installed (<PATH_TO_PLUG>/plugin/lua-support.vim) and add this line to the
+.vimrc: >
+  call mmtemplates#config#Add ( 'C', '<PATH_TO_PLUG>/lua-support/templates-c-api/Templates', 'Lua', 'ntL' )
+The first parameter adds the file to your C templates, the second is the path.
+The remaining two optional parameters specify the symbolic name for these
+templates and the map to edit them. The map is '\ntL' in this example.
+
+The name of the pointer to the Lua state is set to "L" in all the templates,
+just as it is named in the Lua reference manual. It can be changed in your
+C-Support template customization file (see |csupport-templates|), by setting
+the macro *|LUA_STATE|* : >
+  SetMacro( 'LUA_STATE', '<name>' )
+Use this menu entry to set up the file:
+  C/C++ -> Snippets -> template setup wizard
+
+------------------------------------------------------------------------------
+2.8  TOOLBOX                                        *luasupport-usage-toolbox*
 ------------------------------------------------------------------------------
 
 More functionality, not directly related to Lua, is provided in the so-called
@@ -499,7 +525,7 @@ Use the <CTRL-J> to jump to the next tag. The maps works in normal and insert
 mode. Use <CTRL-D> to delete optional tags on the same line, for example: >
   string.match ( <+str+>, <+pattern+>, [+init+] )
 The optional argument "init" can be written down after jumping to the tag
-using <CTRL-J> or deleted together with the comma using <CTRL-D>-
+using <CTRL-J> or deleted together with the comma using <CTRL-D>.
 
 ------------------------------------------------------------------------------
 3.3  SPLIT TAGS                              *luasupport-templates-split-tags*
@@ -590,7 +616,6 @@ set in the .vimrc file.
   |g:Lua_LocalTemplateFile|   (see below)   the local top-level template file
   |g:Lua_GlobalTemplateFile|  (see below)   the global top-level template file
   |g:Lua_CustomTemplateFile|  (see below)   the optional custom template file
-  |g:Lua_AdditionalTemplates| []            further template files
   |g:Templates_PersonalizationFile|
                             (see below)   the personalization template file
 
@@ -616,7 +641,7 @@ Further customization is carried out in the template library:
   |g:Lua_BinPath|           - -empty-
   |g:Lua_Executable|        - g:Lua_BinPath + lua
   |g:Lua_CompilerExec|      - g:Lua_BinPath + luac
-(^2) UNIX only
+(^2) UNIX only, see |luasupport-config-xterm|
 
 ------------------------------------------------------------------------------
 4.1  EXECUTABLES                                *luasupport-config-executable*
@@ -705,10 +730,13 @@ The possible settings are listed below:
   'vim-io' (default)  run on the Vim command-line (supports input operations)
   'vim-qf'            print output on the Vim cmd.-line (supports quickfix)
   'buffer'            redirect the output into a buffer (supports quickfix)
-  'xterm'             run in a separate xterm (supports input operations)
+  'xterm'             run in a separate xterm (supports input operations;
+                       UNIX only, see |luasupport-config-xterm|)
  ----------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
+
+4.1.3  Xterm                                         *luasupport-config-xterm*
 
 The xterm related functionality is only available under UNIX. It is used to
 run interactive commands.
@@ -836,7 +864,7 @@ or on the command line by setting: >
 ------------------------------------------------------------------------------
                         *g:Lua_LclTemplateFile*    *g:Lua_GlbTemplateFile*
                         *g:Lua_LocalTemplateFile*  *g:Lua_GlobalTemplateFile*
-                        *g:Lua_CustomTemplateFile* *g:Lua_AdditionalTemplates*
+                        *g:Lua_CustomTemplateFile*
 The variables g:Lua_LocalTemplateFile and g:Lua_GlobalTemplateFile set the
 locations and names of the local and global template files, respectively.
 The default for the local and global template files depend on the type of the
@@ -876,16 +904,13 @@ For configuring the personalization file, see |g:Templates_PersonalizationFile|.
 
 Using the custom and personalization template files will give the average
 user sufficient options for customization. Adding even more template files is
-possible though, using the setting "g:Lua_AdditionalTemplates". Additional
-template files are given as a list of lists, each of which describes a custom
-template file: >
-  g:Lua_AdditionalTemplates = []
-  call add ( g:Lua_AdditionalTemplates,
-      \ [ filename, symbolic_name, edit_map ] )
-The file 'filename' will be loaded. It is associated with the name
-'symbolic_name'. The map 'edit_map' can be used to open the file for editing.
-The second and third list entry are optional and will be replaced by default
-values if missing.
+possible though, using the function "mmtemplates#config#Add". Each call to the
+function configures an additional template file: >
+  call mmtemplates#config#Add ( "lua", filename, symbolic_name, edit_map )
+For the filetype "lua", the file 'filename' will be loaded. It is associated
+with the name 'symbolic_name'. The map 'edit_map' can be used to open the file
+for editing. The third and fourth argument are optional and will be replaced
+by default values if missing.
 
 
 Example:
@@ -1042,7 +1067,11 @@ A.  TROUBLESHOOTING - KNOWN ISSUES                *luasupport-troubleshooting*
   - Is "lua" executable from the command line?
   - Is the $PATH variable set correctly?
   - Are the settings correct? See:
-      :help luasupport-config-executable
+      :help |luasupport-config-executable|
+  - Under Windows, make sure the options 'shell', 'shellcmdflag',
+    'shellquote', and 'shellxquote' are set correctly. If "cmd.exe" is used as
+    the 'shell', 'shellxquote' must be set to a double quote:
+      :set shellxquote=\"
 
 ==============================================================================
 B.  RELEASE NOTES - CHANGE LOG                      *luasupport-release-notes*

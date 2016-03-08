@@ -12,7 +12,7 @@
 "       Version:  see variable g:Templates_Version below
 "       Created:  30.08.2011
 "      Revision:  30.09.2015
-"       License:  Copyright (c) 2012-2015, Wolfgang Mehner
+"       License:  Copyright (c) 2012-2016, Wolfgang Mehner
 "                 This program is free software; you can redistribute it and/or
 "                 modify it under the terms of the GNU General Public License as
 "                 published by the Free Software Foundation, version 2 of the
@@ -42,7 +42,7 @@ if &cp || ( exists('g:Templates_Version') && g:Templates_Version != 'searching' 
 	finish
 endif
 "
-let s:Templates_Version = '1.0alpha'     " version number of this script; do not change
+let s:Templates_Version = '1.0beta'     " version number of this script; do not change
 "
 "----------------------------------------------------------------------
 "  --- Find Newest Version ---   {{{2
@@ -219,14 +219,16 @@ else
 endif
 "
 " user configurable settings
-let s:Templates_MapInUseWarn = 'yes'
-let s:Templates_TemplateBrowser = 'explore'
+let s:Templates_OverwriteWarning = 'no'
+let s:Templates_MapInUseWarn     = 'yes'
+let s:Templates_TemplateBrowser  = 'explore'
 "
 let s:Templates_PersonalizationFile = 'templates/personal.template*'
 let s:Templates_UsePersonalizationFile = 'yes'
 "
 let s:Templates_AllSettings = {}
 "
+call s:GetGlobalSetting ( 'Templates_OverwriteWarning', 'bin' )
 call s:GetGlobalSetting ( 'Templates_MapInUseWarn', 'bin' )
 call s:GetGlobalSetting ( 'Templates_TemplateBrowser' )
 call s:GetGlobalSetting ( 'Templates_PersonalizationFile' )
@@ -256,12 +258,20 @@ let g:CheckedFiletypes = {}
 "
 let s:StandardMacros = {
 			\ 'BASENAME'       : '',
-			\ 'DATE'           : '%x',
 			\ 'FILENAME'       : '',
 			\ 'PATH'           : '',
 			\ 'SUFFIX'         : '',
+			\
+			\ 'DATE'           : '%x',
+			\ 'DATE_PRETTY'    : '%B %d %Y',
+			\ 'DATE_PRETTY1'   : '%B %d %Y',
+			\ 'DATE_PRETTY2'   : '%b %d %Y',
+			\ 'DATE_PRETTY3'   : '%x',
 			\ 'TIME'           : '%X',
+			\ 'TIME_PRETTY'    : '%X',
 			\ 'YEAR'           : '%Y',
+			\ 'YEAR_PRETTY'    : '%Y',
+			\ 'TIME_LOCALE'    : '',
 			\ }
 "
 "----------------------------------------------------------------------
@@ -289,7 +299,6 @@ let s:StandardProperties = {
 			\ 'Templates::Wizard::FileCustomWithPersonal' : '',
 			\ 'Templates::Wizard::FilePersonal'           : '',
 			\ 'Templates::Wizard::CustomFileVariable'     : '',
-			\ 'Templates::Wizard::AddFileListVariable'    : '',
 			\ }
 "
 "----------------------------------------------------------------------
@@ -429,10 +438,11 @@ function! s:UpdateTemplateRegex ( regex, settings, interface )
 	let a:regex.FunctionList    = '^LIST(\(.\{-}\))$'
 	let a:regex.FunctionComment = a:settings.MacroStart.'\(C\|Comment\)'.'(\(.\{-}\))'.a:settings.MacroEnd
 	let a:regex.FunctionInsert  = a:settings.MacroStart.'\(Insert\|InsertLine\)'.'(\(.\{-}\))'.a:settings.MacroEnd
-	let a:regex.MacroRequest    = a:settings.MacroStart.'?'.a:regex.MacroNameC.  '\(:\a\)\?'. '\(%\%([-+*]\+\|[-+*]\?\d\+\)[lcr]\?\)\?'.a:settings.MacroEnd
-	let a:regex.MacroInsert     = a:settings.MacroStart.''.a:regex.MacroNameC.   '\(:\a\)\?'. '\(%\%([-+*]\+\|[-+*]\?\d\+\)[lcr]\?\)\?'.a:settings.MacroEnd
-	let a:regex.MacroNoCapture  = a:settings.MacroStart.   a:settings.MacroName.'\%(:\a\)\?'.'\%(%[-+*]*\d*[lcr]\?\)\?'.                a:settings.MacroEnd
+	let a:regex.MacroRequest    = a:settings.MacroStart.'?'.  a:regex.MacroNameC.   '\(:\a\)\?'. '\(%\%([-+*]\+\|[-+*]\?\d\+\)[lcr]\?\)\?'.a:settings.MacroEnd
+	let a:regex.MacroInsert     = a:settings.MacroStart.'?\?'.a:regex.MacroNameC.   '\(:\a\)\?'. '\(%\%([-+*]\+\|[-+*]\?\d\+\)[lcr]\?\)\?'.a:settings.MacroEnd
+	let a:regex.MacroNoCapture  = a:settings.MacroStart.'?\?'.a:settings.MacroName.'\%(:\a\)\?'.'\%(%[-+*]*\d*[lcr]\?\)\?'.                a:settings.MacroEnd
 	let a:regex.ListItem        = a:settings.MacroStart.''.a:regex.MacroNameC.':ENTRY_*'.a:settings.MacroEnd
+	let a:regex.LeftRightSep    = a:settings.MacroStart.'<\+>\+'.a:settings.MacroEnd
 	"
 	let a:regex.TextBlockFunctions = '^\%(C\|Comment\|Insert\|InsertLine\)$'
 	"
@@ -581,7 +591,10 @@ function! s:UserInputEx ( ArgLead, CmdLine, CursorPos )
 	if empty( a:ArgLead )
 		return copy( s:UserInputList )
 	endif
-	return filter( copy( s:UserInputList ), 'v:val =~ ''\V\<'.escape(a:ArgLead,'\').'\w\*''' )
+	" The obvious choice here would be '\<' followed by the regular expression
+	" which matches the argument lead. We use '\[0-9a-zA-Z]\@<!' as an
+	" alternative, which means that underscores can also break up words.
+	return filter( copy( s:UserInputList ), 'v:val =~ ''\V\[0-9a-zA-Z]\@<!'.escape(a:ArgLead,'\').'\w\*''' )
 endfunction    " ----------  end of function s:UserInputEx  ----------
 "
 " s:UserInputList : list for s:UserInput   {{{3
@@ -762,15 +775,27 @@ endfunction    " ----------  end of function s:WarningMsg  ----------
 "----------------------------------------------------------------------
 "
 function! mmtemplates#core#NewLibrary ( ... )
-	"
+
 	" ==================================================
 	"  options
 	" ==================================================
-	"
+
+	let api_version_str = '0.9'
+	let api_version     = s:VersionCode ( api_version_str )
+
 	let i = 1
 	while i <= a:0
-		"
-		if a:[i] == 'debug' && i+1 <= a:0 && ! s:DebugGlobalOverwrite
+
+		if a:[i] == 'api_version' && i+1 <= a:0
+			let api_version_str = a:[i+1]
+			let api_version     = s:VersionCode ( api_version_str )
+			if api_version == -1
+				call s:ErrorMsg ( 'Invalid version number: "'.api_version_str.'"' )
+				let api_version_str = '0.9'
+				let api_version     = s:VersionCode ( api_version_str )
+			endif
+			let i += 2
+		elseif a:[i] == 'debug' && i+1 <= a:0 && ! s:DebugGlobalOverwrite
 			let s:DebugLevel = a:[i+1]
 			let i += 2
 		else
@@ -778,17 +803,19 @@ function! mmtemplates#core#NewLibrary ( ... )
 			else                             | call s:ErrorMsg ( 'Unknown option at position '.i.'.' ) | endif
 			let i += 1
 		endif
-		"
+
 	endwhile
-	"
+
 	" ==================================================
 	"  data
 	" ==================================================
-	"
+
 	" library
 	let library   = {
-				\ 'interface_str'  : '0.9',
-				\ 'interface'      : ( s:VersionCode('0.9') ),
+				\ 'api_version_str' : api_version_str,
+				\ 'api_version'     : api_version,
+				\ 'interface_str'   : '0.9',
+				\ 'interface'       : ( s:VersionCode('0.9') ),
 				\
 				\ 'macros'         : {},
 				\ 'properties'     : {},
@@ -815,22 +842,22 @@ function! mmtemplates#core#NewLibrary ( ... )
 				\ 'library_files'  : [],
 				\ }
 	" entries used by maps: 'map_commands!<filetype>'
-	"
+
 	let library.macros.AUTHOR = 'YOUR NAME'
 	call extend ( library.macros,     s:StandardMacros,     'keep' )
 	call extend ( library.properties, s:StandardProperties, 'keep' )
-	"
+
 	call s:UpdateFileReadRegex ( library.regex_file,     library.regex_settings, library.interface )
 	call s:UpdateTemplateRegex ( library.regex_template, library.regex_settings, library.interface )
-	"
+
 	" ==================================================
 	"  wrap up
 	" ==================================================
-	"
+
 	let s:DebugLevel = s:DebugGlobalOverwrite   " reset debug
-	"
+
 	return library      " return the new library
-	"
+
 endfunction    " ----------  end of function mmtemplates#core#NewLibrary  ----------
 "
 "----------------------------------------------------------------------
@@ -1303,10 +1330,14 @@ function! s:HandleMenuExpandOptions ( option )
 		return '|KEY|'
 	elseif a:option == 'key-notags'
 		return '|KEY:T|'
+	elseif a:option == 'key-whitetags'
+		return '|KEY:W|'
 	elseif a:option == 'value'
 		return '|VALUE|'
 	elseif a:option == 'value-notags'
 		return '|VALUE:T|'
+	elseif a:option == 'value-whitetags'
+		return '|VALUE:W|'
 	endif
 	"
 	" error
@@ -1412,15 +1443,30 @@ endfunction    " ----------  end of function s:InterfaceVersion  ----------
 "----------------------------------------------------------------------
 "
 function! s:SetFormat ( name, replacement )
-	"
+
 	" check for valid name
-	if a:name !~ 'TIME\|DATE\|YEAR'
+	if a:name !~ s:library.regex_file.MacroName
+		call s:ErrorMsg ( 'Macro name must be a valid identifier: '.a:name )
+		return
+	elseif a:name !~ '^\%(TIME.*\|DATE.*\|YEAR.*\)'
 		call s:ErrorMsg ( 'Can not set the format of: '.a:name )
 		return
+	elseif a:name == 'TIME_LOCALE'
+
+		let save_time_lang = v:lc_time
+
+		try
+			silent exe 'language time '.a:replacement
+		catch /E197:.*/
+			call s:ErrorMsg ( 'Can not set the time locale to "'.a:replacement.'".' )
+			return
+		finally
+			silent exe 'language time '.save_time_lang
+		endtry
 	endif
-	"
+
 	let s:library.macros[ a:name ] = a:replacement
-	"
+
 endfunction    " ----------  end of function s:SetFormat  ----------
 "
 "----------------------------------------------------------------------
@@ -1900,7 +1946,7 @@ function! mmtemplates#core#ReadTemplates ( library, ... )
 				\ 'filetypes_stack' : [],
 				\ 'files_visited'   : {},
 				\
-				\ 'overwrite_warning' : 0,
+				\ 'overwrite_warning' : s:Templates_OverwriteWarning == 'yes',
 				\ }
 	"
 	if s:library.interface >= 1000000
@@ -2082,7 +2128,12 @@ function! mmtemplates#core#ReadTemplates ( library, ... )
 		let s:t_runtime.filetypes_stack = []
 		"
 		" read the top-level file
-		call s:IncludeFile ( f, 'abs' )
+		try
+			call s:IncludeFile ( f, 'abs' )
+		catch /Template:Check:.*/
+			let msg = v:exception[ len( 'Template:Check:') : -1 ]
+			call s:ErrorMsg ( 'While loading "'.f.'":', msg )
+		endtry
 		"
 	endfor
 	"
@@ -2193,7 +2244,7 @@ endfunction    " ----------  end of function mmtemplates#core#EnableTemplateFile
 "
 " Flags:
 "   :l :u :c - change the case
-"   :L :T   - modify the text
+"   :L :T :W - modify the text
 " Format:
 "   % [-+*]+ [lcr]?
 "   % [-+*]?\d+ [lcr]?
@@ -2220,6 +2271,10 @@ function! s:ApplyFlag ( text, flag, format, width )
 	elseif a:flag == 'T'                  " T : remove tags
 		let text = substitute( a:text, '<R\?CURSOR>\|{R\?CURSOR}\|<SPLIT>', '', 'g' ) " cursor and split tags
 		let text = substitute(   text, s:library.regex_template.JumpTagAll, '', 'g' ) " jump tags
+		let text = text
+	elseif a:flag == 'W'                  " W : replace tags with whitespaces
+		let text = substitute( a:text, '<R\?CURSOR>\|{R\?CURSOR}\|<SPLIT>', ' ', 'g' ) " cursor and split tags
+		let text = substitute(   text, s:library.regex_template.JumpTagAll, ' ', 'g' ) " jump tags
 		let text = text
 	else                                  " flag not valid
 		" noop
@@ -2272,57 +2327,82 @@ endfunction    " ----------  end of function s:ApplyFlag  ----------
 "
 function! s:ReplaceMacros ( text, m_local )
 	"
-	let text1 = ''
-	let text2 = a:text
+	let regex_macro = '\(.\{-}\)'.s:library.regex_template.MacroInsert.'\(\_.*\)'
+	let regex_lrsep = '\(.\{-}\)\s*'.s:library.regex_template.LeftRightSep.'\s*\(\_.*\)'
 	"
-	let regex = '\(\_.\{-}\)'.s:library.regex_template.MacroInsert.'\(\_.*\)'
+	let text_res = ''
 	"
-	while 1
+	" split lines (keep newline)
+	for line_raw in split( a:text, '\n\zs' )
 		"
-		let mlist = matchlist ( text2, regex )
+		let line_width = len ( line_raw )
 		"
-		" no more macros?
-		if empty ( mlist )
-			break
+		let line_res  = ''
+		let line_tail = line_raw
+		"
+		" search for macros
+		while 1
+			"
+			let mlist = matchlist ( line_tail, regex_macro )
+			"
+			" no more macros?
+			if empty ( mlist )
+				let line_res .= line_tail                                 " assemble the result
+				break
+			endif
+			"
+			" check for recursion
+			if -1 != index ( s:t_runtime.macro_stack, mlist[2] )
+				let m_text = ''
+				call add ( s:t_runtime.macro_stack, mlist[2] )
+				throw 'Template:MacroRecursion'
+			end
+			"
+			" has local replacement?
+			if has_key ( a:m_local, mlist[2] )
+				let m_text = get ( a:m_local, mlist[2] )                  " get local replacement
+			else
+				let m_text = get ( s:library.macros, mlist[2], '' )       " try to get global replacement
+			end
+			"
+			" the replacement text contains macros itself?
+			if m_text =~ s:library.regex_template.MacroNoCapture
+				"
+				call add ( s:t_runtime.macro_stack, mlist[2] )            " add to the macro stack (for recursion checks)
+				"
+				let m_text = s:ReplaceMacros ( m_text, a:m_local )        " replace the macros in the replacement text
+				"
+				call remove ( s:t_runtime.macro_stack, -1 )               " revert the stack
+				"
+			endif
+			"
+			" apply flag?
+			if ! empty ( mlist[3] ) || ! empty ( mlist[4] )
+				let width  = 2 + len ( mlist[2] ) + len ( mlist[3] ) + len ( mlist[4] )
+				let m_text = s:ApplyFlag ( m_text, mlist[3][1:], mlist[4][1:], width )   " apply flags to the replacement text
+			endif
+			"
+			let line_res .= mlist[1].m_text                             " assemble the result
+			let line_tail = mlist[5]
+			"
+		endwhile
+		"
+		" special: left-right separator
+		if line_res =~ s:library.regex_template.LeftRightSep
+			let mlist = matchlist ( line_res, regex_lrsep )
+			"
+			let text_l = mlist[1]
+			let text_r = mlist[2]
+			"
+			let pad = max ( [ line_width - len ( text_l ) - len ( text_r ), 1 ] )
+			"
+			let line_res = text_l.repeat( ' ', pad ).text_r
 		endif
 		"
-		" check for recursion
-		if -1 != index ( s:t_runtime.macro_stack, mlist[2] )
-			let m_text = ''
-			call add ( s:t_runtime.macro_stack, mlist[2] )
-			throw 'Template:MacroRecursion'
-		end
-		"
-		" has local replacement?
-		if has_key ( a:m_local, mlist[2] )
-			let m_text = get ( a:m_local, mlist[2] )                  " get local replacement
-		else
-			let m_text = get ( s:library.macros, mlist[2], '' )       " try to get global replacement
-		end
-		"
-		" the replacement text contains macros itself?
-		if m_text =~ s:library.regex_template.MacroNoCapture
-			"
-			call add ( s:t_runtime.macro_stack, mlist[2] )            " add to the macro stack (for recursion checks)
-			"
-			let m_text = s:ReplaceMacros ( m_text, a:m_local )        " replace the macros in the replacement text
-			"
-			call remove ( s:t_runtime.macro_stack, -1 )               " revert the stack
-			"
-		endif
-		"
-		" apply flag?
-		if ! empty ( mlist[3] ) || ! empty ( mlist[4] )
-			let width  = 2 + len ( mlist[2] ) + len ( mlist[3] ) + len ( mlist[4] )
-			let m_text = s:ApplyFlag ( m_text, mlist[3][1:], mlist[4][1:], width )   " apply flags to the replacement text
-		endif
-		"
-		let text1 .= mlist[1].m_text                                " assemble the result
-		let text2  = mlist[5]
-		"
-	endwhile
+		let text_res .= line_res
+	endfor
 	"
-	return text1.text2
+	return text_res
 	"
 endfunction    " ----------  end of function s:ReplaceMacros  ----------
 "
@@ -2394,26 +2474,25 @@ function! s:CheckStdTempl ( cmds, text, calls )
 	" --------------------------------------------------
 	"  replacements
 	" --------------------------------------------------
+	"
+	let pos = 0
+	"
 	while 1
 		"
-		let mlist = matchlist ( text, regex.MacroRequest )
+		let pos = match ( text, regex.MacroRequest, pos )
 		"
 		" no more macros?
-		if empty ( mlist )
+		if pos == -1
 			break
 		endif
+		"
+		let mlist = matchlist ( text, regex.MacroRequest, pos )
+		"
+		let pos += len ( mlist[0] )
 		"
 		let m_name = mlist[1]
 		let m_flag = mlist[2]
 		let m_frmt = mlist[3]
-		"
-		if ! empty ( m_frmt ) && m_frmt !~ '\d'
-			" Width specified, but not with numbers:
-			" We have to replace the character '?' we delete in the macro text,
-			" which we do by inserting the first character after the leading '%' a
-			" second time.
-			let m_frmt = m_frmt[0:1].m_frmt[1:]
-		endif
 		"
 		" not a special macro and not already done?
 		if has_key ( s:StandardMacros, m_name )
@@ -2422,10 +2501,6 @@ function! s:CheckStdTempl ( cmds, text, calls )
 			let cmds .= "Prompt(".string(m_name).",".string(m_flag[1:]).")\n"
 			let prompted[ m_name ] = 1
 		endif
-		"
-		" insert a normal macro
-		let text = s:LiteralReplacement ( text, 
-					\ mlist[0], ms.m_name.m_flag.m_frmt.me, 'g' )
 		"
 	endwhile
 	"
@@ -3278,7 +3353,45 @@ endfunction    " ----------  end of function s:PrepareTemplate  ----------
 "----------------------------------------------------------------------
 " === Insert Templates: Auxiliary Functions ===   {{{1
 "----------------------------------------------------------------------
+
+"-------------------------------------------------------------------------------
+" s:RenewStdMacros : Renew the standard macros.   {{{2
 "
+" Parameters:
+"   to_list - <+DESCRIPTION+> (<+TYPE+>)
+"   from_list - <+DESCRIPTION+> (<+TYPE+>)
+" Returns:
+"   -
+"-------------------------------------------------------------------------------
+
+function! s:RenewStdMacros ( to_list, from_list )
+
+	let a:to_list[ 'BASENAME' ] = expand( '%:t:r' )
+	let a:to_list[ 'FILENAME' ] = expand( '%:t'   )
+	let a:to_list[ 'PATH'     ] = expand( '%:p:h' )
+	let a:to_list[ 'SUFFIX'   ] = expand( '%:e'   )
+
+	if a:from_list[ 'TIME_LOCALE' ] != ''
+		let save_time_lang = v:lc_time
+		silent exe 'language time '.a:from_list[ 'TIME_LOCALE' ]
+	endif
+
+	let a:to_list[ 'DATE' ]          = strftime( a:from_list[ 'DATE' ] )
+	let a:to_list[ 'DATE_PRETTY' ]   = strftime( a:from_list[ 'DATE_PRETTY' ] )
+	let a:to_list[ 'DATE_PRETTY1' ]  = strftime( a:from_list[ 'DATE_PRETTY1' ] )
+	let a:to_list[ 'DATE_PRETTY2' ]  = strftime( a:from_list[ 'DATE_PRETTY2' ] )
+	let a:to_list[ 'DATE_PRETTY3' ]  = strftime( a:from_list[ 'DATE_PRETTY3' ] )
+	let a:to_list[ 'TIME' ]          = strftime( a:from_list[ 'TIME' ] )
+	let a:to_list[ 'TIME_PRETTY' ]   = strftime( a:from_list[ 'TIME_PRETTY' ] )
+	let a:to_list[ 'YEAR' ]          = strftime( a:from_list[ 'YEAR' ] )
+	let a:to_list[ 'YEAR_PRETTY' ]   = strftime( a:from_list[ 'YEAR_PRETTY' ] )
+
+	if a:from_list[ 'TIME_LOCALE' ] != ''
+		silent exe 'language time '.save_time_lang
+	endif
+
+endfunction    " ----------  end of function s:RenewStdMacros  ----------
+
 "----------------------------------------------------------------------
 " s:InsertIntoBuffer : Insert a text into the buffer.   {{{2
 " (thanks to Fritz Mehner)
@@ -3335,6 +3448,12 @@ function! s:InsertIntoBuffer ( text, placement, indentation, flag_mode )
 				:join!
 				let indentation = 0
 			elseif placement == 'insert'
+
+				" set textwidth to zero to disable auto-wrapping of lines,
+				" compare 'formatoptions'
+				let save_textwidth = &l:textwidth
+				let &l:textwidth = 0
+
 				let text = text[ 0: -2 ]  " remove trailing '\n'
 				let currentline = getline( "." )
 				let pos1 = line(".")
@@ -3344,10 +3463,13 @@ function! s:InsertIntoBuffer ( text, placement, indentation, flag_mode )
 				else
 					exe 'normal! a'.text
 				endif
+
 				" reformat only multi-line inserts and previously empty lines
 				if pos1 == pos2 && currentline != ''
 					let indentation = 0
 				endif
+
+				let &l:textwidth = save_textwidth
 			endif
 			"
 		else
@@ -3387,14 +3509,15 @@ function! s:InsertIntoBuffer ( text, placement, indentation, flag_mode )
 		" part0 and part1 can consist of several lines
 		"
 		if placement == 'insert'
-			" windows:  register @* does not work
-			" solution: recover area of the visual mode and yank,
-			"           puts the selected area into the buffer @"
 			let pos1 = line("'<")
 			let pos2 = line("'>") + len(split( text, '\n' )) - 1
-			let repl = escape ( part[0].s:GetVisualArea().part[1], '\&~' )
 			" substitute the selected area (using the '< and '> marks)
-			exe ':s/\%''<.*\%''>./'.repl.'/'
+			" - insert the second part first, such that the line numbers are still
+			"   correct
+			" - the mark '> is positioned strangely, so we have to include one
+			"   character from the buffer in the pattern
+			exe ':'.pos2.'s/\%''>.\?/&'.escape ( part[1], '/\&~' ).'/'
+			exe ':'.pos1.'s/\%''</'.    escape ( part[0], '/\&~' ).'/'
 			let indentation = 0
 		elseif placement == 'below'
 			silent '<put! = part[0]
@@ -3474,6 +3597,8 @@ endfunction    " ----------  end of function s:PositionCursor  ----------
 function! s:HighlightJumpTargets ( regex )
 	exe 'match Search /'.a:regex.'/'
 endfunction    " ----------  end of function s:HighlightJumpTargets  ----------
+" }}}2
+"----------------------------------------------------------------------
 "
 "----------------------------------------------------------------------
 " mmtemplates#core#InsertTemplate : Insert a template.   {{{1
@@ -3515,14 +3640,7 @@ function! mmtemplates#core#InsertTemplate ( library, t_name, ... ) range
 	let regex = s:library.regex_template
 	"
 	" renew the predefined macros
-	let s:t_runtime.macros[ 'BASENAME' ] = expand( '%:t:r' )
-	let s:t_runtime.macros[ 'FILENAME' ] = expand( '%:t'   )
-	let s:t_runtime.macros[ 'PATH'     ] = expand( '%:p:h' )
-	let s:t_runtime.macros[ 'SUFFIX'   ] = expand( '%:e'   )
-	"
-	let s:t_runtime.macros[ 'DATE' ]     = strftime( s:library.macros[ 'DATE' ] )
-	let s:t_runtime.macros[ 'TIME' ]     = strftime( s:library.macros[ 'TIME' ] )
-	let s:t_runtime.macros[ 'YEAR' ]     = strftime( s:library.macros[ 'YEAR' ] )
+	call s:RenewStdMacros ( s:t_runtime.macros, s:library.macros )
 	"
 	" handle folds internally (and save the state)
 	if &foldenable
@@ -3673,26 +3791,32 @@ endfunction    " ----------  end of function mmtemplates#core#InsertTemplate  --
 "----------------------------------------------------------------------
 " === Create Maps: Auxiliary Functions ===   {{{1
 "----------------------------------------------------------------------
-"
+
 "-------------------------------------------------------------------------------
 " s:DoCreateMap : Check whether a map already exists.   {{{2
 "-------------------------------------------------------------------------------
-"
+
 function! s:DoCreateMap ( map, mode, report )
-	"
+
 	let mapinfo = maparg ( a:map, a:mode )
-	if ! empty ( mapinfo ) && mapinfo !~ 'mmtemplates#core#'
-		if a:report
+
+	if ! empty ( mapinfo ) && a:report
+		if mapinfo !~ 'mmtemplates#core#'
 			call s:ErrorMsg ( 'Mapping already in use: "'.a:map.'", mode "'.a:mode.'", command:', '  '.mapinfo )
+		elseif 0
+			" :TODO:15.12.2015 11:47:WM: the template maps are not existing at this
+			" point, since the commands are serialized as a string before they are
+			" executed; find another way to obtain the template name
+			let temp_name = 'TODO - not implemented yet -'
+			call s:ErrorMsg ( 'Mapping already in use: "'.a:map.'", mode "'.a:mode.'", template:', '  '.temp_name )
 		endif
-		return 0
 	endif
-	"
-	return 1
+
+	return empty ( mapinfo )
 endfunction    " ----------  end of function s:DoCreateMap  ----------
 " }}}2
 "----------------------------------------------------------------------
-"
+
 "----------------------------------------------------------------------
 " mmtemplates#core#CreateMaps : Create maps for a template library.   {{{1
 "----------------------------------------------------------------------
@@ -4331,7 +4455,11 @@ function! mmtemplates#core#CreateMenus ( library, root_menu, ... )
 			else                               | call extend ( submenus, a:[i+1] ) | endif
 			let i += 2
 		elseif a:[i] == 'specials_menu' && i+1 <= a:0
-			let s:t_runtime.spec_menu = a:[i+1]
+			if t_lib.api_version < 1000000
+				let s:t_runtime.spec_menu = escape ( a:[i+1], ' ' )
+			else
+				let s:t_runtime.spec_menu = a:[i+1]
+			endif
 			let i += 2
 		elseif a:[i] == 'priority' && i+1 <= a:0
 			let priority = a:[i+1]
@@ -4374,12 +4502,20 @@ function! mmtemplates#core#CreateMenus ( library, root_menu, ... )
 	for name in existing
 		let name = substitute( name, '&', '', 'g' )
 		let name = substitute( name, '\.$', '', '' )
-		let t_lib.menu_existing[ name ] = 0
+		if t_lib.api_version < 1000000
+			let t_lib.menu_existing[ escape ( name, ' ' ) ] = 0
+		else
+			let t_lib.menu_existing[ name ] = 0
+		endif
 	endfor
 	"
 	" sub-menus
 	for name in submenus
-		call s:CreateSubmenu ( name, priority )
+		if t_lib.api_version < 1000000
+			call s:CreateSubmenu ( escape ( name, ' ' ), priority )
+		else
+			call s:CreateSubmenu ( name, priority )
+		endif
 	endfor
 	"
 	" templates
@@ -4512,7 +4648,7 @@ endfunction    " ----------  end of function mmtemplates#core#ChooseStyle  -----
 "
 function! mmtemplates#core#Resource ( library, mode, ... )
 	"
-	" TODO mode 'special' for |DATE|, |TIME| and |year|
+	" TODO mode 'special' for |DATE|, |TIME| and |YEAR|
 	"
 	" ==================================================
 	"  parameters
@@ -4560,7 +4696,9 @@ function! mmtemplates#core#Resource ( library, mode, ... )
 			endif
 		endfor
 		"
-		call add ( templist, '(template engine version '.g:Templates_Version.', interface version '.t_lib.interface_str.')' )
+		call add ( templist,
+					\ '(template engine version '.g:Templates_Version
+					\ .', API '.t_lib.api_version_str.', interface '.t_lib.interface_str.')' )
 		"
 		return [ templist, '' ]
 	else
@@ -4758,14 +4896,7 @@ function! mmtemplates#core#ExpandText ( library, text )
 	"
 	" renew the predefined macros
 	let m_local = {}
-	let m_local[ 'BASENAME' ] = expand( '%:t:r' )
-	let m_local[ 'FILENAME' ] = expand( '%:t'   )
-	let m_local[ 'PATH'     ] = expand( '%:p:h' )
-	let m_local[ 'SUFFIX'   ] = expand( '%:e'   )
-	"
-	let m_local[ 'DATE' ]     = strftime( t_lib.macros[ 'DATE' ] )
-	let m_local[ 'TIME' ]     = strftime( t_lib.macros[ 'TIME' ] )
-	let m_local[ 'YEAR' ]     = strftime( t_lib.macros[ 'YEAR' ] )
+	call s:RenewStdMacros ( m_local, t_lib.macros )
 	"
 	" ==================================================
 	"  do the job
@@ -4990,7 +5121,7 @@ function! mmtemplates#core#AddCustomTemplateFiles ( library, temp_list, list_nam
 	for i in range( 0, len ( a:temp_list )-1 )
 		"
 		if type( a:temp_list[i] ) != type( [] )
-			call s:ErrorMsg ( 'The entry of "'.a:list_name.'" with index '.i.' is not a list.' )
+			call s:ErrorMsg ( 'The entry of '.a:list_name.' with index '.i.' is not a list.' )
 			continue
 		endif
 		"
@@ -5001,10 +5132,10 @@ function! mmtemplates#core#AddCustomTemplateFiles ( library, temp_list, list_nam
 		let file_name = expand ( file_name )
 		"
 		if file_name == ''
-			call s:ErrorMsg ( 'The entry of "'.a:list_name.'" with index '.i.' does not contain a file name.' )
+			call s:ErrorMsg ( 'The entry of '.a:list_name.' with index '.i.' does not contain a file name.' )
 			continue
 		elseif ! filereadable ( file_name )
-			call s:ErrorMsg ( 'The entry of "'.a:list_name.'" with index '.i.' does not name a readable file.' )
+			call s:ErrorMsg ( 'The entry of '.a:list_name.' with index '.i.' does not name a readable file.' )
 			continue
 		endif
 		"
@@ -5012,7 +5143,7 @@ function! mmtemplates#core#AddCustomTemplateFiles ( library, temp_list, list_nam
 		let edit_map = ! empty ( edit_map ) ? edit_map : 'nt'.(i+1)
 		"
 		call mmtemplates#core#ReadTemplates ( t_lib, 'load', file_name,
-					\ 'name', sym_name, 'map', reload_map )
+					\ 'name', sym_name, 'map', edit_map )
 		"
 	endfor
 	"

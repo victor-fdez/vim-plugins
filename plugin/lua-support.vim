@@ -12,7 +12,7 @@
 "       Version:  see variable g:Lua_Version below
 "       Created:  26.03.2014
 "      Revision:  30.12.2014
-"       License:  Copyright (c) 2014-2015, Wolfgang Mehner
+"       License:  Copyright (c) 2014-2016, Wolfgang Mehner
 "                 This program is free software; you can redistribute it and/or
 "                 modify it under the terms of the GNU General Public License as
 "                 published by the Free Software Foundation, version 2 of the
@@ -41,7 +41,7 @@ endif
 if &cp || ( exists('g:Lua_Version') && ! exists('g:Lua_DevelopmentOverwrite') )
 	finish
 endif
-let g:Lua_Version= '1.0pre'     " version number of this script; do not change
+let g:Lua_Version= '1.0'     " version number of this script; do not change
 "
 "-------------------------------------------------------------------------------
 " Auxiliary functions.   {{{1
@@ -125,6 +125,40 @@ function! s:ImportantMsg ( ... )
 	echo join ( a:000, "\n" )
 	echohl None
 endfunction    " ----------  end of function s:ImportantMsg  ----------
+
+"-------------------------------------------------------------------------------
+" s:ShellEscExec : Escape an executable for the shell   {{{2
+"
+" Parameters:
+"   exec - the name of the executable (string)
+" Returns:
+"   exec - the escaped version (string)
+"
+" Uses 'shellescape', except under Windows if the shell is "cmd.exe". In that
+" case, all spaces are escaped with "^^".
+"-------------------------------------------------------------------------------
+
+function! s:ShellEscExec ( exec )
+	if s:MSWIN && &shell =~ 'cmd.exe'
+		"return substitute ( a:exec, ' ', '^^&', 'g' )
+		return shellescape ( a:exec )
+	else
+		return shellescape ( a:exec )
+	endif
+endfunction    " ----------  end of function s:ShellEscExec  ----------
+
+"-------------------------------------------------------------------------------
+" s:SID : Return the <SID>.   {{{2
+"
+" Parameters:
+"   -
+" Returns:
+"   SID - the SID of the script (string)
+"-------------------------------------------------------------------------------
+"
+function! s:SID ()
+	return matchstr ( expand('<sfile>'), '<SNR>\zs\d\+\ze_SID$' )
+endfunction    " ----------  end of function s:SID  ----------
 "
 "-------------------------------------------------------------------------------
 " s:UserInput : Input after a highlighted prompt.   {{{2
@@ -146,7 +180,7 @@ function! s:UserInput ( prompt, text, ... )
 		let retval = input( a:prompt, a:text )
 	elseif a:1 == 'customlist'
 		let s:UserInputList = a:2
-		let retval = input( a:prompt, a:text, 'customlist,Lua_UserInputEx' )
+		let retval = input( a:prompt, a:text, 'customlist,<SNR>'.s:SID().'_UserInputEx' )
 		let s:UserInputList = []
 	else
 		let retval = input( a:prompt, a:text, a:1 )
@@ -162,15 +196,15 @@ function! s:UserInput ( prompt, text, ... )
 endfunction    " ----------  end of function s:UserInput ----------
 "
 "-------------------------------------------------------------------------------
-" Lua_UserInputEx : ex-command for s:UserInput.   {{{3
+" s:UserInputEx : ex-command for s:UserInput.   {{{3
 "-------------------------------------------------------------------------------
 "
-function! Lua_UserInputEx ( ArgLead, CmdLine, CursorPos )
+function! s:UserInputEx ( ArgLead, CmdLine, CursorPos )
 	if empty( a:ArgLead )
 		return copy( s:UserInputList )
 	endif
 	return filter( copy( s:UserInputList ), 'v:val =~ ''\V\<'.escape(a:ArgLead,'\').'\w\*''' )
-endfunction    " ----------  end of function Lua_UserInputEx  ----------
+endfunction    " ----------  end of function s:UserInputEx  ----------
 " }}}3
 "-------------------------------------------------------------------------------
 "
@@ -262,7 +296,11 @@ let s:CmdLineEscChar = ' |"\'
 let s:Lua_LoadMenus             = 'auto'       " load the menus?
 let s:Lua_RootMenu              = '&Lua'       " name of the root menu
 "
-let s:Lua_OutputMethodList      = [ 'vim-io', 'vim-qf', 'buffer', 'xterm' ]
+if s:MSWIN
+	let s:Lua_OutputMethodList = [ 'vim-io', 'vim-qf', 'buffer' ]
+else
+	let s:Lua_OutputMethodList = [ 'vim-io', 'vim-qf', 'buffer', 'xterm' ]
+endif
 let s:Lua_OutputMethod          = 'vim-io'     " 'vim-io', 'vim-qf', 'buffer' or 'xterm'
 let s:Lua_DirectRun             = 'no'         " 'yes' or 'no'
 let s:Lua_LineEndCommColDefault = 49
@@ -270,7 +308,7 @@ let s:Lua_CommentLabel          = "BlockCommentNo_"
 let s:Lua_SnippetDir            = s:plugin_dir.'/lua-support/codesnippets/'
 let s:Lua_SnippetBrowser        = 'gui'
 let s:Lua_UseToolbox            = 'yes'
-let s:Lua_AdditionalTemplates   = []
+let s:Lua_AdditionalTemplates   = mmtemplates#config#GetFt ( 'lua' )
 "
 let s:Xterm_Executable          = 'xterm'
 "
@@ -303,7 +341,6 @@ call s:GetGlobalSetting ( 'Lua_LocalTemplateFile',  'Lua_LclTemplateFile' )
 call s:GetGlobalSetting ( 'Lua_GlobalTemplateFile' )
 call s:GetGlobalSetting ( 'Lua_LocalTemplateFile' )
 call s:GetGlobalSetting ( 'Lua_CustomTemplateFile' )
-call s:GetGlobalSetting ( 'Lua_AdditionalTemplates' )
 call s:GetGlobalSetting ( 'Lua_LoadMenus' )
 call s:GetGlobalSetting ( 'Lua_RootMenu' )
 call s:GetGlobalSetting ( 'Lua_OutputMethod' )
@@ -961,13 +998,15 @@ function! Lua_Run ( args )
 				\ .'%f:%l: %m'
 	"
 	if s:Lua_DirectRun == 'yes' && executable ( expand ( '%:p' ) )
-		let exec   = shellescape ( expand ( '%:p' ) )
+		let exec   = expand ( '%:p' )
 		let script = ''
 	else
-		let exec   = shellescape ( s:Lua_Executable )
+		let exec   = s:Lua_Executable
 		let script = shellescape ( expand ( '%' ) )
 	endif
-	"
+
+	let exec = s:ShellEscExec ( exec )
+
 	if s:Lua_OutputMethod == 'vim-io'
 		"
 		" method : "vim - interactive"
@@ -1038,7 +1077,7 @@ function! Lua_Run ( args )
 		setlocal modifiable
 		"
 		silent exe '%delete _'
-		exe '0r!'.exec.' '.script.' '.a:args
+		silent exe '0r!'.exec.' '.script.' '.a:args
 		silent exe '$delete _'
 		"
 		if v:shell_error == 0
@@ -1119,7 +1158,7 @@ function! Lua_Compile( mode ) range
 	"
 	" run code checker
 	" :TODO:26.03.2014 20:54:WM: check escaping of errorformat
-	let &l:makeprg = shellescape( s:Lua_CompilerExec )
+	let &l:makeprg = s:ShellEscExec( s:Lua_CompilerExec )
 	let &l:errorformat = substitute( s:Lua_CompilerExec, '%\\%\\', '%\', 'g' ).': %f:%l: %m,'.substitute( s:Lua_CompilerExec, '%\\%\\', '%\', 'g' ).': %m'
 	"
 	let v:statusmsg = ''                               " reset, so we are able to check it below
@@ -1272,7 +1311,7 @@ function! s:SetupTemplates()
 	"-------------------------------------------------------------------------------
 	" setup template library
 	"-------------------------------------------------------------------------------
-	let g:Lua_Templates = mmtemplates#core#NewLibrary ()
+	let g:Lua_Templates = mmtemplates#core#NewLibrary ( 'api_version', '1.0' )
 	"
 	" mapleader
 	if empty ( g:Lua_MapLeader )
@@ -1288,7 +1327,6 @@ function! s:SetupTemplates()
 	call mmtemplates#core#Resource ( g:Lua_Templates, 'set', 'property', 'Templates::Wizard::FileCustomWithPersonal', s:plugin_dir.'/lua-support/rc/custom_with_personal.templates' )
 	call mmtemplates#core#Resource ( g:Lua_Templates, 'set', 'property', 'Templates::Wizard::FilePersonal',           s:plugin_dir.'/lua-support/rc/personal.templates' )
 	call mmtemplates#core#Resource ( g:Lua_Templates, 'set', 'property', 'Templates::Wizard::CustomFileVariable',     'g:Lua_CustomTemplateFile' )
-	call mmtemplates#core#Resource ( g:Lua_Templates, 'set', 'property', 'Templates::Wizard::AddFileListVariable',    'g:Lua_AdditionalTemplates' )
 	"
 	" maps: special operations
 	call mmtemplates#core#Resource ( g:Lua_Templates, 'set', 'property', 'Templates::RereadTemplates::Map', 'ntr' )
@@ -1309,7 +1347,7 @@ function! s:SetupTemplates()
 	endif
 	"
 	" local templates (optional for global installation)
-	if s:installation == 'global'
+	if s:installation == 'system'
 		call mmtemplates#core#ReadTemplates ( g:Lua_Templates, 'load', s:Lua_LocalTemplateFile,
 					\ 'name', 'local', 'map', 'ntl', 'optional', 'hidden' )
 	else
@@ -1317,18 +1355,18 @@ function! s:SetupTemplates()
 					\ 'name', 'local', 'map', 'ntl' )
 	endif
 	"
-	" custom templates (optional, existence of file checked by template engine)
-	call mmtemplates#core#ReadTemplates ( g:Lua_Templates, 'load', s:Lua_CustomTemplateFile,
-				\ 'name', 'custom', 'map', 'ntc', 'optional' )
-	"
 	" additional templates (optional)
 	if ! empty ( s:Lua_AdditionalTemplates )
-		call mmtemplates#core#AddCustomTemplateFiles ( g:Lua_Templates, s:Lua_AdditionalTemplates, 'g:Lua_AdditionalTemplates' )
+		call mmtemplates#core#AddCustomTemplateFiles ( g:Lua_Templates, s:Lua_AdditionalTemplates, "Lua's additional templates" )
 	endif
 	"
 	" personal templates (shared across template libraries) (optional, existence of file checked by template engine)
 	call mmtemplates#core#ReadTemplates ( g:Lua_Templates, 'personalization',
 				\ 'name', 'personal', 'map', 'ntp' )
+	"
+	" custom templates (optional, existence of file checked by template engine)
+	call mmtemplates#core#ReadTemplates ( g:Lua_Templates, 'load', s:Lua_CustomTemplateFile,
+				\ 'name', 'custom', 'map', 'ntc', 'optional' )
 	"
 endfunction    " ----------  end of function s:SetupTemplates  ----------
 "
@@ -1793,7 +1831,9 @@ function! s:InitMenus()
 	exe shead.'output\ method.vim\ &io<TAB>interactive   :call Lua_SetOutputMethod("vim-io")<CR>'
 	exe shead.'output\ method.vim\ &qf<TAB>quickfix      :call Lua_SetOutputMethod("vim-qf")<CR>'
 	exe shead.'output\ method.&buffer<TAB>quickfix       :call Lua_SetOutputMethod("buffer")<CR>'
-	exe shead.'output\ method.&xterm<TAB>interactive     :call Lua_SetOutputMethod("xterm")<CR>'
+	if ! s:MSWIN
+		exe shead.'output\ method.&xterm<TAB>interactive     :call Lua_SetOutputMethod("xterm")<CR>'
+	endif
 	"
 	" run -> direct run
 	"
@@ -1837,50 +1877,48 @@ function! s:ToolMenu( action )
 	"
 	if a:action == 'setup'
 		anoremenu <silent> 40.1000 &Tools.-SEP100- :
-		anoremenu <silent> 40.1122 &Tools.Load\ Lua\ Support   :call Lua_AddMenus()<CR>
-	elseif a:action == 'loading'
+		anoremenu <silent> 40.1122 &Tools.Load\ Lua\ Support   :call <SID>AddMenus()<CR>
+	elseif a:action == 'load'
 		aunmenu   <silent> &Tools.Load\ Lua\ Support
-		anoremenu <silent> 40.1122 &Tools.Unload\ Lua\ Support :call Lua_RemoveMenus()<CR>
-	elseif a:action == 'unloading'
+		anoremenu <silent> 40.1122 &Tools.Unload\ Lua\ Support :call <SID>RemoveMenus()<CR>
+	elseif a:action == 'unload'
 		aunmenu   <silent> &Tools.Unload\ Lua\ Support
-		anoremenu <silent> 40.1122 &Tools.Load\ Lua\ Support   :call Lua_AddMenus()<CR>
+		anoremenu <silent> 40.1122 &Tools.Load\ Lua\ Support   :call <SID>AddMenus()<CR>
+		exe 'aunmenu <silent> '.s:Lua_RootMenu
 	endif
 	"
 endfunction    " ----------  end of function s:ToolMenu  ----------
 "
 "-------------------------------------------------------------------------------
-" Lua_AddMenus : Add menus.   {{{1
+" s:AddMenus : Add menus.   {{{1
 "-------------------------------------------------------------------------------
 "
-function! Lua_AddMenus()
+function! s:AddMenus()
 	if s:MenuVisible == 0
 		" the menu is becoming visible
 		let s:MenuVisible = 2
 		" make sure the templates are loaded
 		call s:SetupTemplates ()
 		" initialize if not existing
-		call s:ToolMenu ( 'loading' )
+		call s:ToolMenu ( 'load' )
 		call s:InitMenus ()
 		" the menu is now visible
 		let s:MenuVisible = 1
 	endif
-endfunction    " ----------  end of function Lua_AddMenus  ----------
+endfunction    " ----------  end of function s:AddMenus  ----------
 "
 "-------------------------------------------------------------------------------
-" Lua_RemoveMenus : Remove menus.   {{{1
+" s:RemoveMenus : Remove menus.   {{{1
 "-------------------------------------------------------------------------------
 "
-function! Lua_RemoveMenus()
+function! s:RemoveMenus()
 	if s:MenuVisible == 1
 		" destroy if visible
-		call s:ToolMenu ( 'unloading' )
-		if has ( 'menu' )
-			exe 'aunmenu <silent> '.s:Lua_RootMenu
-		endif
+		call s:ToolMenu ( 'unload' )
 		" the menu is now invisible
 		let s:MenuVisible = 0
 	endif
-endfunction    " ----------  end of function Lua_RemoveMenus  ----------
+endfunction    " ----------  end of function s:RemoveMenus  ----------
 "
 "-------------------------------------------------------------------------------
 " Lua_Settings : Print the settings on the command line.   {{{1
@@ -1911,7 +1949,7 @@ function! Lua_Settings( verbose )
 					\ ."\n"
 	else
 		let txt .=
-					\  "                templates :  -not loaded- \n"
+					\  "                templates :  -not loaded-\n"
 					\ ."\n"
 	endif
 	" plug-in installation, template engine
@@ -1930,13 +1968,13 @@ function! Lua_Settings( verbose )
 	endif
 	let txt .= "\n"
 	" templates, snippets
-	let [ templist, msg ] = mmtemplates#core#Resource ( g:Lua_Templates, 'template_list' )
-	if empty ( templist )
-		let txt .= "           template files :  -no template files-\n"
-	else
+	if exists ( 'g:Lua_Templates' )
+		let [ templist, msg ] = mmtemplates#core#Resource ( g:Lua_Templates, 'template_list' )
 		let sep  = "\n"."                             "
 		let txt .=      "           template files :  "
 					\ .join ( templist, sep )."\n"
+	else
+		let txt .= "           template files :  -not loaded-\n"
 	endif
 	let txt .=
 				\  '       code snippets dir. :  '.s:Lua_SnippetDir."\n"
@@ -1998,7 +2036,7 @@ call s:ToolMenu ( 'setup' )
 "
 " load the menu right now?
 if s:Lua_LoadMenus == 'startup'
-	call Lua_AddMenus ()
+	call s:AddMenus ()
 endif
 "
 " user defined commands (working everywhere)
@@ -2010,7 +2048,7 @@ command! -nargs=? -complete=shellcmd                       LuaCompilerExec   cal
 if has( 'autocmd' )
 	autocmd FileType *
 				\	if &filetype == 'lua' && ! exists( 'g:Lua_Templates' ) |
-				\		if s:Lua_LoadMenus == 'auto' | call Lua_AddMenus () |
+				\		if s:Lua_LoadMenus == 'auto' | call s:AddMenus () |
 				\		else                         | call s:SetupTemplates () |
 				\		endif |
 				\	endif
